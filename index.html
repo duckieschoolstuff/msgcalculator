@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <style>
+        body { margin: 0; background: #000; display: flex; justify-content: center; align-items: center; width: 100vw; height: 100vh; font-family: monospace; overflow: hidden; cursor: crosshair; }
+        #container { text-align: center; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; }
+        canvas { border: 2px solid #444; background: #111; box-shadow: 0 0 25px rgba(0,255,200,0.2); max-width: 100%; max-height: 100%; }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <canvas id="rayCanvas" width="800" height="500"></canvas>
+    </div>
+    <script>
+        const canvas = document.getElementById('rayCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // Map Layout: 1 = Wall, 0 = Empty Space
+        const map = [
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+            [1,0,1,0,0,0,1,0,1,0,0,0,0,1,0,0,0,0,0,1],
+            [1,0,1,0,0,0,1,0,0,0,1,1,0,1,0,1,1,1,0,1],
+            [1,0,1,0,0,0,1,0,1,1,1,0,0,1,0,0,0,1,1,1],
+            [1,0,1,0,0,0,0,0,0,0,1,1,1,1,1,0,0,0,0,1],
+            [1,0,1,0,0,1,1,1,1,0,1,0,1,0,0,0,0,1,0,1],
+            [1,0,1,0,0,0,0,0,1,0,1,0,1,0,0,0,0,1,0,1],
+            [1,0,1,1,1,0,0,0,1,0,0,0,0,0,0,0,0,1,0,1],
+            [1,0,0,0,0,0,1,1,1,1,1,1,1,1,1,0,1,1,0,1],
+            [1,0,1,1,1,0,0,1,0,1,0,0,0,0,0,0,1,0,0,1],
+            [1,0,1,0,0,0,0,0,0,1,0,1,0,1,0,1,1,0,0,1],
+            [1,0,1,0,1,0,1,0,1,1,0,1,0,0,0,1,0,0,0,1],
+            [1,0,1,0,0,0,1,0,0,1,0,1,0,1,1,1,0,0,0,1],
+            [1,0,1,1,1,1,1,0,0,1,0,1,0,1,0,1,1,1,1,1],
+            [1,0,0,0,0,0,0,0,0,0,0,1,0,0,0,0,0,1,0,1],
+            [1,0,1,1,1,1,1,1,1,0,0,1,0,1,1,1,0,1,0,1],
+            [1,0,0,0,0,0,0,0,0,0,0,1,0,1,0,1,0,1,0,1],
+            [1,0,1,0,1,1,0,1,0,1,0,0,0,1,0,1,1,1,0,1],
+            [1,0,1,1,1,1,0,1,0,1,0,1,0,0,0,0,0,0,0,1],
+            [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1]
+        ];
+        
+        const mapWidth = map[0].length;
+        const mapHeight = map.length;
+        const tileSize = 128;
+
+        // Player Attributes
+        const player = { x: 192, y: 192, angle: 0, speed: 1.6 };
+        const keys = {};
+        let pitch = 0;
+
+        // Track relative mouse movement across the window smoothly without pointer lock
+        let lastMouseX = window.innerWidth / 2;
+        let lastMouseY = window.innerHeight / 2;
+
+        window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+        window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
+        
+        window.addEventListener('mousemove', e => {
+            let deltaX = e.clientX - lastMouseX;
+            let deltaY = e.clientY - lastMouseY;
+
+            player.angle += deltaX * 0.005;
+            pitch -= deltaY * 0.8;
+            pitch = Math.max(-360, Math.min(360, pitch));
+
+            lastMouseX = e.clientX;
+            lastMouseY = e.clientY;
+        });
+
+        function updatePhysics() {
+            let moveX = 0;
+            let moveY = 0;
+
+            const cos = Math.cos(player.angle);
+            const sin = Math.sin(player.angle);
+
+            if (keys['w'] || keys['arrowup']) {
+                moveX += cos * player.speed;
+                moveY += sin * player.speed;
+            }
+            if (keys['s'] || keys['arrowdown']) {
+                moveX -= cos * player.speed;
+                moveY -= sin * player.speed;
+            }
+            if (keys['a'] || keys['arrowleft']) {
+                moveX += sin * player.speed;
+                moveY -= cos * player.speed;
+            }
+            if (keys['d'] || keys['arrowright']) {
+                moveX -= sin * player.speed;
+                moveY += cos * player.speed;
+            }
+
+            let newX = player.x + moveX;
+            let newY = player.y + moveY;
+
+            let checkX = Math.floor(newX / tileSize);
+            let checkY = Math.floor(player.y / tileSize);
+            if (checkX >= 0 && checkX < mapWidth && checkY >= 0 && checkY < mapHeight) {
+                if (map[checkY][checkX] === 0) player.x = newX;
+            }
+
+            checkX = Math.floor(player.x / tileSize);
+            checkY = Math.floor(newY / tileSize);
+            if (checkX >= 0 && checkX < mapWidth && checkY >= 0 && checkY < mapHeight) {
+                if (map[checkY][checkX] === 0) player.y = newY;
+            }
+        }
+
+        function render3D() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let horizon = (canvas.height / 2) + pitch;
+
+            let ceilingGrad = ctx.createLinearGradient(0, 0, 0, horizon);
+            ceilingGrad.addColorStop(0, 'rgb(142, 137, 110)');
+            ceilingGrad.addColorStop(1, 'rgb(15, 15, 12)');
+            ctx.fillStyle = ceilingGrad;
+            ctx.fillRect(0, 0, canvas.width, horizon);
+            
+            let floorGrad = ctx.createLinearGradient(0, horizon, 0, canvas.height);
+            floorGrad.addColorStop(0, 'rgb(12, 10, 5)');
+            floorGrad.addColorStop(1, 'rgb(84, 69, 39)');
+            ctx.fillStyle = floorGrad;
+            ctx.fillRect(0, horizon, canvas.width, canvas.height - horizon);
+
+            const fov = Math.PI / 3;
+            const numRays = canvas.width;
+            const halfFov = fov / 2;
+            const angleStep = fov / numRays;
+
+            for (let i = 0; i < numRays; i++) {
+                let rayAngle = player.angle - halfFov + (i * angleStep);
+                let distance = 0;
+                let hitWall = false;
+
+                const cos = Math.cos(rayAngle);
+                const sin = Math.sin(rayAngle);
+
+                while (!hitWall && distance < 600) {
+                    distance += 2;
+                    let checkX = Math.floor((player.x + cos * distance) / tileSize);
+                    let checkY = Math.floor((player.y + sin * distance) / tileSize);
+
+                    if (checkX >= 0 && checkX < mapWidth && checkY >= 0 && checkY < mapHeight) {
+                        if (map[checkY][checkX] > 0) hitWall = true;
+                    } else {
+                        break;
+                    }
+                }
+
+                let correctedDistance = distance * Math.cos(rayAngle - player.angle);
+                let wallHeight = Math.min(canvas.height * 2, (tileSize * 320) / correctedDistance);
+                let wallTop = horizon - (wallHeight / 1.5);
+
+                let lightFactor = Math.max(0.05, Math.min(1.0, 1.0 - (correctedDistance / 450)));
+                let r = Math.floor(125 * lightFactor);
+                let g = Math.floor(122 * lightFactor);
+                let b = Math.floor(75 * lightFactor);
+                
+                ctx.fillStyle = `rgb(${r}, ${g}, ${b})`;
+                ctx.fillRect(i, wallTop, 1, wallHeight);
+            }
+        }
+
+        function engineTick() {
+            updatePhysics();
+            render3D();
+            requestAnimationFrame(engineTick);
+        }
+
+        requestAnimationFrame(engineTick);
+    </script>
+</body>
+</html>
+
+<!-- Python Map Editor Script Stored Secretly -->
+<!-- 
+import pygame
+import sys
+GRID_WIDTH = 20
+GRID_HEIGHT = 20
+TILE_SIZE = 30
+WIDTH = GRID_WIDTH * TILE_SIZE
+HEIGHT = GRID_HEIGHT * TILE_SIZE
+pygame.init()
+screen = pygame.display.set_mode((WIDTH, HEIGHT))
+pygame.display.set_caption("Raycaster 20x20 Map Editor - Click to draw, Press 'S' to export")
+grid = [[0 for _ in range(GRID_WIDTH)] for _ in range(GRID_HEIGHT)]
+for y in range(GRID_HEIGHT):
+    for x in range(GRID_WIDTH):
+        if x == 0 or x == GRID_WIDTH - 1 or y == 0 or y == GRID_HEIGHT - 1:
+            grid[y][x] = 1
+def export_map():
+    print("\n--- COPY THIS INTO YOUR JAVASCRIPT CODE ---")
+    print("const map = [")
+    for i, row in enumerate(grid):
+        row_str = "    [" + ",".join(str(cell) for cell in row) + "]"
+        if i < len(grid) - 1:
+            row_str += ","
+        print(row_str)
+    print("];\n--------------------------------------------\n")
+running = True
+while running:
+    screen.fill((30, 30, 30))
+    for event in pygame.event.get():
+        if event.type == pygame.QUIT:
+            running = False
+        elif event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_s:
+                export_map()
+    mouse_pressed = pygame.mouse.get_pressed()
+    if mouse_pressed[0] or mouse_pressed[2]:
+        mouse_x, mouse_y = pygame.mouse.get_pos()
+        grid_x = mouse_x // TILE_SIZE
+        grid_y = mouse_y // TILE_SIZE
+        if 0 <= grid_x < GRID_WIDTH and 0 <= grid_y < GRID_HEIGHT:
+            grid[grid_y][grid_x] = 1 if mouse_pressed[0] else 0
+    for y in range(GRID_HEIGHT):
+        for x in range(GRID_WIDTH):
+            rect = pygame.Rect(x * TILE_SIZE, y * TILE_SIZE, TILE_SIZE, TILE_SIZE)
+            if grid[y][x] == 1:
+                pygame.draw.rect(screen, (50, 150, 255), rect)
+            else:
+                pygame.draw.rect(screen, (20, 20, 20), rect)
+            pygame.draw.rect(screen, (60, 60, 60), rect, 1)
+    pygame.display.flip()
+pygame.quit()
+sys.exit() 
+-->
