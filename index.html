@@ -16,14 +16,28 @@
         const ctx = canvas.getContext('2d');
 
         // Map Layout: 1 = Wall, 0 = Empty Space
-        const W = 20, H = 20, map = Array.from({length: H}, () => Array(W).fill(1));
-        let x = 1, y = 1, steps = 1500;
-        while (steps--) {
-            map[y][x] = map[y + (Math.random() < 0.5)][x + (Math.random() < 0.5)] = 0;
-            const [dx, dy] = [[0,1],[0,-1],[1,0],[-1,0]][Math.floor(Math.random() * 4)];
-            if (x + dx > 0 && x + dx < W - 2 && y + dy > 0 && y + dy < H - 2) { x += dx; y += dy; }
+        const W = Math.floor(Math.random()*100), H = Math.floor(Math.random()*100), map = Array.from({length: H}, () => Array(W).fill(1)), cells = [];
+        map[1][1] = 0; cells.push([1, 1]);
+        while (cells.length) {
+            const idx = Math.random() < 0.75 ? cells.length - 1 : Math.floor(Math.random() * cells.length);
+            const [cx, cy] = cells[idx];
+            const dirs = [[0,2],[0,-2],[2,0],[-2,0]].sort(() => Math.random() - 0.5);
+            let carved = false;
+            for (const [dx, dy] of dirs) {
+                const nx = cx + dx, ny = cy + dy, wx = cx + dx / 2, wy = cy + dy / 2;
+                if (nx > 0 && nx < W - 1 && ny > 0 && ny < H - 1) {
+                    if (map[ny][nx]) {
+                        map[wy][wx] = map[ny][nx] = 0;
+                        if (Math.random() < 0.15 && nx < W - 2 && ny < H - 2) map[ny][nx+1] = map[ny+1][nx] = map[ny+1][nx+1] = 0;
+                        cells.push([nx, ny]);
+                        carved = true;
+                        break;
+                    } else if (map[wy][wx] && Math.random() < 0.05) map[wy][wx] = 0;
+                }
+            }
+            if (!carved) cells.splice(idx, 1);
         }
-        console.log(map.map(r => r.map(c => c ? '#' : ' ').join('')).join('\n'));
+        console.log(map.map(r => r.map(c => c ? '█' : ' ').join('')).join('\n'));
         
         const mapWidth = map[0].length;
         const mapHeight = map.length;
