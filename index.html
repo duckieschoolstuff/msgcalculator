@@ -17,13 +17,13 @@
 
         // Map Layout: 1 = Wall, 0 = Empty Space
         const W = 20, H = 20, map = Array.from({length: H}, () => Array(W).fill(1));
-        let x = 1, y = 1, steps = 800;
-        while (steps>0) {
-            map[y][x] = 0;
+        let x = 1, y = 1, steps = 1500;
+        while (steps--) {
+            map[y][x] = map[y + (Math.random() < 0.5)][x + (Math.random() < 0.5)] = 0;
             const [dx, dy] = [[0,1],[0,-1],[1,0],[-1,0]][Math.floor(Math.random() * 4)];
-            if (x + dx > 0 && x + dx < W - 1 && y + dy > 0 && y + dy < H - 1) { x += dx; y += dy; steps--;}
+            if (x + dx > 0 && x + dx < W - 2 && y + dy > 0 && y + dy < H - 2) { x += dx; y += dy; }
         }
-        console.log(map.map(r => r.map(c => c ? '█' : ' ').join('')).join('\n'));
+        console.log(map.map(r => r.map(c => c ? '#' : ' ').join('')).join('\n'));
         
         const mapWidth = map[0].length;
         const mapHeight = map.length;
